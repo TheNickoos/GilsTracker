@@ -5,6 +5,6 @@
   "Description": "Counts how much gil you gain or lose while playing.",
   "InternalName": "GilsTracker",
   "ApplicableVersion": "any",
-  "IconUrl": "https://raw.githubusercontent.com/TheNickoos/GilsTracker/main/icon.png",
+  "IconUrl": "https://raw.githubusercontent.com/TheNickoos/GilsTracker/refs/heads/master/SamplePlugin/GilsTracker.png",
   "Tags": ["gil", "economy", "session"]
 }
