@@ -1,0 +1,10 @@
+{
+  "Author": "Nickoos",
+  "Name": "Gils Tracker",
+  "Punchline": "Tracks gil gained and spent during the session.",
+  "Description": "Counts how much gil you gain or lose while playing.",
+  "InternalName": "GilsTracker",
+  "ApplicableVersion": "any",
+  "IconUrl": "https://raw.githubusercontent.com/TheNickoos/GilsTracker/main/icon.png",
+  "Tags": ["gil", "economy", "session"]
+}

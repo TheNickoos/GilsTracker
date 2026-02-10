@@ -1,7 +1,7 @@
-﻿using Dalamud.Configuration;
+using Dalamud.Configuration;
 using System;
 
-namespace SamplePlugin;
+namespace GilsTracker;
 
 [Serializable]
 public class Configuration : IPluginConfiguration

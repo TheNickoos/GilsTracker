@@ -12,5 +12,7 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Visible>false</Visible>
     </Content>
+    <Content Include="GilsTracker.json" />
+    <EmbeddedResource Include="GilsTracker.png" />
   </ItemGroup>
 </Project>

@@ -1,12 +1,17 @@
-﻿using Dalamud.Game.Command;
+using Dalamud.Game.Command;
+using Dalamud.Game.Gui.Dtr;
+using Dalamud.Interface.Windowing;
 using Dalamud.IoC;
 using Dalamud.Plugin;
-using System.IO;
-using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
-using SamplePlugin.Windows;
+using GilsTracker.Windows;
+using System;
+using System.IO;
+using Dalamud.Game.Text;
+using Dalamud.Game.Text.SeStringHandling;
+using Dalamud.Game.Text.SeStringHandling.Payloads;
 
-namespace SamplePlugin;
+namespace GilsTracker;
 
 public sealed class Plugin : IDalamudPlugin
 {
@@ -14,73 +19,136 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static ITextureProvider TextureProvider { get; private set; } = null!;
     [PluginService] internal static ICommandManager CommandManager { get; private set; } = null!;
     [PluginService] internal static IClientState ClientState { get; private set; } = null!;
-    [PluginService] internal static IPlayerState PlayerState { get; private set; } = null!;
-    [PluginService] internal static IDataManager DataManager { get; private set; } = null!;
+    [PluginService] internal static IFramework Framework { get; private set; } = null!;
+    [PluginService] internal static IGameInventory GameInventory { get; private set; } = null!;
     [PluginService] internal static IPluginLog Log { get; private set; } = null!;
 
-    private const string CommandName = "/pmycommand";
+    private const string CommandName = "/gilstracker";
 
     public Configuration Configuration { get; init; }
 
-    public readonly WindowSystem WindowSystem = new("SamplePlugin");
+    internal GilTrackerService GilTracker { get; }
+
+    public readonly WindowSystem WindowSystem = new("GilsTracker");
     private ConfigWindow ConfigWindow { get; init; }
     private MainWindow MainWindow { get; init; }
 
-    public Plugin()
+    private readonly IDtrBar dtrBar;
+    private IDtrBarEntry? dtrEntry;
+
+    public Plugin(IDtrBar dtrBar)
     {
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
 
-        // You might normally want to embed resources and load them from the manifest stream
-        var goatImagePath = Path.Combine(PluginInterface.AssemblyLocation.Directory?.FullName!, "goat.png");
+        // Polls Currency inventory on Framework.Update (throttled internally).
+        GilTracker = new GilTrackerService(ClientState, Framework, GameInventory);
+
+        GilTracker.OnGilChanged += UpdateDtrText;
 
         ConfigWindow = new ConfigWindow(this);
-        MainWindow = new MainWindow(this, goatImagePath);
+        MainWindow = new MainWindow(this);
 
         WindowSystem.AddWindow(ConfigWindow);
         WindowSystem.AddWindow(MainWindow);
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
-            HelpMessage = "A useful message to display in /xlhelp"
+            HelpMessage = "Open the GilsTracker window."
         });
 
-        // Tell the UI system that we want our windows to be drawn through the window system
         PluginInterface.UiBuilder.Draw += WindowSystem.Draw;
-
-        // This adds a button to the plugin installer entry of this plugin which allows
-        // toggling the display status of the configuration ui
         PluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUi;
-
-        // Adds another button doing the same but for the main ui of the plugin
         PluginInterface.UiBuilder.OpenMainUi += ToggleMainUi;
 
-        // Add a simple message to the log with level set to information
-        // Use /xllog to open the log window in-game
-        // Example Output: 00:57:54.959 | INF | [SamplePlugin] ===A cool log message from Sample Plugin===
-        Log.Information($"===A cool log message from {PluginInterface.Manifest.Name}===");
+        
+
+        this.dtrBar = dtrBar;
+
+        // crée l'entrée DTR une fois
+        dtrEntry = dtrBar.Get("GilsTracker");
+        dtrEntry.Text = "Gil: …";
+        dtrEntry.Tooltip = "GilsTracker\nClic: reset session";
+        dtrEntry.Shown = true; // optionnel
+
+        dtrEntry.OnClick = _ =>
+        {
+            sessionStartUtc = DateTime.UtcNow;
+            GilTracker.ResetBaseline();
+        };
+
+
+
+        Log.Information($"=== Loaded {PluginInterface.Manifest.Name} ===");
     }
 
     public void Dispose()
     {
-        // Unregister all actions to not leak anything during disposal of plugin
         PluginInterface.UiBuilder.Draw -= WindowSystem.Draw;
         PluginInterface.UiBuilder.OpenConfigUi -= ToggleConfigUi;
         PluginInterface.UiBuilder.OpenMainUi -= ToggleMainUi;
-        
-        WindowSystem.RemoveAllWindows();
 
+        dtrEntry.Remove();
+
+        WindowSystem.RemoveAllWindows();
         ConfigWindow.Dispose();
         MainWindow.Dispose();
+
+        GilTracker.Dispose();
 
         CommandManager.RemoveHandler(CommandName);
     }
 
-    private void OnCommand(string command, string args)
+    private DateTime sessionStartUtc = DateTime.UtcNow;
+
+    private void UpdateDtrText(long net, long gained, long spent)
     {
-        // In response to the slash command, toggle the display status of our main ui
-        MainWindow.Toggle();
+        if (dtrEntry is null)
+            return;
+
+        var elapsedHours = (DateTime.UtcNow - sessionStartUtc).TotalHours;
+        var perHour = elapsedHours > 0 ? (long)(net / elapsedHours) : 0;
+
+        var se = new SeString();
+
+        // "Gil "
+        se.Payloads.Add(new TextPayload("Gil "));
+
+        // couleur selon net
+        se.Payloads.Add(new UIForegroundPayload(
+            (ushort)(net > 0 ? 45 :   // vert
+            net < 0 ? 17 :   // rouge
+            0)
+        ));
+
+        se.Payloads.Add(new TextPayload($"{(net >= 0 ? "+" : "")}{FormatGil(net)}"));
+
+        // reset couleur
+        se.Payloads.Add(new UIForegroundPayload(0));
+
+        se.Payloads.Add(new TextPayload($" | {FormatGil(perHour)}/h"));
+
+        dtrEntry.Text = se;
+
+        dtrEntry.Tooltip =
+            $"GilsTracker\n" +
+            $"Net: {(net >= 0 ? "+" : "")}{net:n0}\n" +
+            $"Gained: +{gained:n0}\n" +
+            $"Spent:  -{spent:n0}\n" +
+            $"Rate: {perHour:n0} / hour\n" +
+            $"Clic: reset session";
     }
-    
+
+    private static string FormatGil(long v)
+    {
+        var a = Math.Abs(v);
+        if (a >= 1_000_000) return $"{v / 1_000_000d:0.#}M";
+        if (a >= 1_000) return $"{v / 1_000d:0.#}k";
+        return v.ToString("0");
+    }
+
+
+    private void OnCommand(string command, string args) => MainWindow.Toggle();
+
     public void ToggleConfigUi() => ConfigWindow.Toggle();
     public void ToggleMainUi() => MainWindow.Toggle();
 }

@@ -1,31 +1,37 @@
-﻿using System;
-using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface.Textures;
+using Dalamud.Interface.Textures.TextureWraps;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
-using Lumina.Excel.Sheets;
+using System;
+using System.Numerics;
+using System.Reflection;
 
-namespace SamplePlugin.Windows;
+namespace GilsTracker.Windows;
 
 public class MainWindow : Window, IDisposable
 {
-    private readonly string goatImagePath;
     private readonly Plugin plugin;
+    private ISharedImmediateTexture? logo;
 
     // We give this window a hidden ID using ##.
     // The user will see "My Amazing Window" as window title,
     // but for ImGui the ID is "My Amazing Window##With a hidden ID"
-    public MainWindow(Plugin plugin, string goatImagePath)
-        : base("My Amazing Window##With a hidden ID", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)
+    public MainWindow(Plugin plugin)
+        : base("Gils Tracker##GilsTracker", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)
     {
         SizeConstraints = new WindowSizeConstraints
         {
             MinimumSize = new Vector2(375, 330),
             MaximumSize = new Vector2(float.MaxValue, float.MaxValue)
         };
+        
+        var asm = Assembly.GetExecutingAssembly();
+        var resourceName = "GilsTracker.GilsTracker.png";
 
-        this.goatImagePath = goatImagePath;
+        logo = Plugin.TextureProvider.GetFromManifestResource(asm, resourceName);
+
         this.plugin = plugin;
     }
 
@@ -33,70 +39,60 @@ public class MainWindow : Window, IDisposable
 
     public override void Draw()
     {
-        ImGui.Text($"The random config bool is {plugin.Configuration.SomePropertyToBeSavedAndWithADefault}");
-
-        if (ImGui.Button("Show Settings"))
-        {
+        // Top bar
+        if (ImGui.Button("Config"))
             plugin.ToggleConfigUi();
-        }
+
+        ImGui.SameLine();
+        if (ImGui.Button("Reset session"))
+            plugin.GilTracker.ResetBaseline();
 
         ImGui.Spacing();
 
-        // Normally a BeginChild() would have to be followed by an unconditional EndChild(),
-        // ImRaii takes care of this after the scope ends.
-        // This works for all ImGui functions that require specific handling, examples are BeginTable() or Indent().
-        using (var child = ImRaii.Child("SomeChildWithAScrollbar", Vector2.Zero, true))
+        // Optional cute goat (kept from template)
+        using (var child = ImRaii.Child("Header", new Vector2(0, 95), true))
         {
-            // Check if this child is drawing
             if (child.Success)
             {
-                ImGui.Text("Have a goat:");
-                var goatImage = Plugin.TextureProvider.GetFromFile(goatImagePath).GetWrapOrDefault();
-                if (goatImage != null)
+                if (logo != null)
                 {
-                    using (ImRaii.PushIndent(55f))
-                    {
-                        ImGui.Image(goatImage.Handle, goatImage.Size);
-                    }
-                }
-                else
-                {
-                    ImGui.Text("Image not found.");
+                    ImGui.Image(logo.GetWrapOrEmpty().Handle, new Vector2(64, 64));
+                    ImGui.SameLine();
                 }
 
-                ImGuiHelpers.ScaledDummy(20.0f);
-
-                // Example for other services that Dalamud provides.
-                // PlayerState provides a wrapper filled with information about the player character.
-
-                var playerState = Plugin.PlayerState;
-                if (!playerState.IsLoaded)
-                {
-                    ImGui.Text("Our local player is currently not logged in.");
-                    return;
-                }
-                
-                if (!playerState.ClassJob.IsValid)
-                {
-                    ImGui.Text("Our current job is currently not valid.");
-                    return;
-                }
-
-                // If you want to see the Macro representation of this SeString use `.ToMacroString()`
-                // More info about SeStrings: https://dalamud.dev/plugin-development/sestring/
-                ImGui.Text($"Our current job is ({playerState.ClassJob.RowId}) '{playerState.ClassJob.Value.Abbreviation}' with level {playerState.Level}");
-
-                // Example for querying Lumina, getting the name of our current area.
-                var territoryId = Plugin.ClientState.TerritoryType;
-                if (Plugin.DataManager.GetExcelSheet<TerritoryType>().TryGetRow(territoryId, out var territoryRow))
-                {
-                    ImGui.Text($"We are currently in ({territoryId}) '{territoryRow.PlaceName.Value.Name}'");
-                }
-                else
-                {
-                    ImGui.Text("Invalid territory.");
-                }
+                ImGui.BeginGroup();
+                ImGui.TextUnformatted("Gils Tracker");
+                ImGui.TextDisabled("Tracks gil gained/spent since login.");
+                ImGui.EndGroup();
             }
         }
+
+        ImGuiHelpers.ScaledDummy(6);
+
+        // Main stats
+        if (!Plugin.ClientState.IsLoggedIn)
+        {
+            ImGui.TextDisabled("Not logged in.");
+            return;
+        }
+
+        var t = plugin.GilTracker;
+        if (!t.HasBaseline || t.CurrentGil is null)
+        {
+            ImGui.TextDisabled("Initializing... (waiting for first gil read)");
+            return;
+        }
+
+        var startGil = t.BaselineGil ?? 0;
+        var currentGil = t.CurrentGil ?? 0;
+
+        ImGui.Text($"Start:   {startGil:N0} gil");
+        ImGui.Text($"Current: {currentGil:N0} gil");
+
+        ImGui.Separator();
+
+        ImGui.Text($"Net:     {t.SessionDelta:N0} gil");
+        ImGui.Text($"Gained:  {t.Gained:N0} gil");
+        ImGui.Text($"Spent:   {t.Spent:N0} gil");
     }
 }
