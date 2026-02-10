@@ -15,9 +15,6 @@ public class MainWindow : Window, IDisposable
     private readonly Plugin plugin;
     private ISharedImmediateTexture? logo;
 
-    // We give this window a hidden ID using ##.
-    // The user will see "My Amazing Window" as window title,
-    // but for ImGui the ID is "My Amazing Window##With a hidden ID"
     public MainWindow(Plugin plugin)
         : base("Gils Tracker##GilsTracker", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)
     {

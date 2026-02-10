@@ -61,14 +61,12 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.OpenMainUi += ToggleMainUi;
 
         
-
         this.dtrBar = dtrBar;
 
-        // crée l'entrée DTR une fois
         dtrEntry = dtrBar.Get("GilsTracker");
         dtrEntry.Text = "Gil: …";
         dtrEntry.Tooltip = "GilsTracker\nClic: reset session";
-        dtrEntry.Shown = true; // optionnel
+        dtrEntry.Shown = Configuration.ShowDTR;
 
         dtrEntry.OnClick = _ =>
         {
@@ -87,7 +85,10 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.OpenConfigUi -= ToggleConfigUi;
         PluginInterface.UiBuilder.OpenMainUi -= ToggleMainUi;
 
-        dtrEntry.Remove();
+        GilTracker.OnGilChanged -= UpdateDtrText;
+        if (dtrEntry != null)
+            dtrEntry.Remove();
+
 
         WindowSystem.RemoveAllWindows();
         ConfigWindow.Dispose();
@@ -151,4 +152,16 @@ public sealed class Plugin : IDalamudPlugin
 
     public void ToggleConfigUi() => ConfigWindow.Toggle();
     public void ToggleMainUi() => MainWindow.Toggle();
+
+    internal void ApplyDtrVisibility()
+    {
+        if (dtrEntry == null) return;
+
+        dtrEntry.Shown = Configuration.ShowDTR;
+
+        if (dtrEntry.Shown && GilTracker.HasBaseline)
+            UpdateDtrText(GilTracker.SessionDelta, GilTracker.Gained, GilTracker.Spent);
+    }
+
+
 }
