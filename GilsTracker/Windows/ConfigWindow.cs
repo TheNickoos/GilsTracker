@@ -31,7 +31,7 @@ public class ConfigWindow : Window, IDisposable
             configuration.ShowDTR = showDtr;
             configuration.Save();
 
-            plugin.ApplyDtrVisibility(); // ✅ applique tout de suite
+            plugin.ApplyDtrVisibility();
         }
     }
 }

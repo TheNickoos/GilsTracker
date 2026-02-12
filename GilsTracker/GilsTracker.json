@@ -4,11 +4,5 @@
   "InternalName": "GilsTracker",
   "Punchline": "Tracks gil gained and spent during the session.",
   "Description": "Counts how much gil you gain or lose while playing.",
-  "ApplicableVersion": "any",
-  "RepoUrl": "https://github.com/TheNickoos/GilsTracker",
-  "DalamudApiLevel": 14,
-  "LoadPriority": 0,
   "Tags": ["gil", "economy", "session"],
-  "Changelog": "Click the Changelog button to see whats new",
-  "IconUrl": "https://raw.githubusercontent.com/TheNickoos/GilsTracker/master/GilsTracker/GilsTracker.png"
 }
