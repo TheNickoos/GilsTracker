@@ -5,7 +5,7 @@ using Dalamud.Interface.Windowing;
 
 namespace GilsTracker.Windows;
 
-public class ConfigWindow : Window, IDisposable
+public class ConfigWindow : Window
 {
     private readonly Configuration configuration;
     private readonly Plugin plugin;
@@ -22,7 +22,6 @@ public class ConfigWindow : Window, IDisposable
         SizeCondition = ImGuiCond.Always;
     }
 
-    public void Dispose() { }
     public override void Draw()
     {
         var showDtr = configuration.ShowDTR;

@@ -10,10 +10,10 @@ using System.Reflection;
 
 namespace GilsTracker.Windows;
 
-public class MainWindow : Window, IDisposable
+public class MainWindow : Window
 {
     private readonly Plugin plugin;
-    private ISharedImmediateTexture? logo;
+    private readonly ISharedImmediateTexture? logo;
 
     public MainWindow(Plugin plugin)
         : base("Gils Tracker##GilsTracker", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)
@@ -32,8 +32,6 @@ public class MainWindow : Window, IDisposable
         this.plugin = plugin;
     }
 
-    public void Dispose() { }
-
     public override void Draw()
     {
         // Top bar
@@ -46,8 +44,7 @@ public class MainWindow : Window, IDisposable
 
         ImGui.Spacing();
 
-        // Optional cute goat (kept from template)
-        using (var child = ImRaii.Child("Header", new Vector2(0, 95), true))
+        using (var child = ImRaii.Child("Header", new Vector2(0, 95 * ImGuiHelpers.GlobalScale), true))
         {
             if (child.Success)
             {

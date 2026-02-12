@@ -1,6 +1,8 @@
-using System;
 using Dalamud.Game.Inventory;
 using Dalamud.Plugin.Services;
+using FFXIVClientStructs.FFXIV.Client.Game.UI;
+using FFXIVClientStructs.FFXIV.Client.System.Framework;
+using System;
 
 namespace GilsTracker;
 
@@ -15,63 +17,65 @@ internal sealed class GilTrackerService : IDisposable
 {
     private const uint GilBaseItemId = 1;
 
-    private readonly IClientState _clientState;
-    private readonly IFramework _framework;
-    private readonly IGameInventory _inventory;
-    private DateTime _lastPoll = DateTime.MinValue;
+    private readonly IClientState clientState;
+    private readonly IFramework framework;
+    private readonly IGameInventory inventory;
+    private DateTime lastPoll = DateTime.MinValue;
 
     // Session state
-    public bool HasBaseline => _baselineGil.HasValue;
-    public int? CurrentGil => _currentGil;
-    public int? BaselineGil => _baselineGil;
-    public int SessionDelta => _sessionDelta;
-    public int Gained => _gained;
-    public int Spent => _spent;
+    public bool HasBaseline => baselineGil.HasValue;
+    public int? CurrentGil => currentGil;
+    public int? BaselineGil => baselineGil;
+    public int SessionDelta => sessionDelta;
+    public int Gained => gained;
+    public int Spent => spent;
 
-    private int? _baselineGil;
-    private int? _currentGil;
-    private int _sessionDelta;
-    private int _gained;
-    private int _spent;
+    private int? baselineGil;
+    private int? currentGil;
+    private int sessionDelta;
+    private int gained;
+    private int spent;
 
     public event Action<long, long, long>? OnGilChanged;
     // args = net, gained, spent
 
-    public GilTrackerService(IClientState clientState, IFramework framework, IGameInventory inventory)
-    {
-        _clientState = clientState;
-        _framework = framework;
-        _inventory = inventory;
+    private readonly IPlayerState playerState;
 
-        _framework.Update += OnFrameworkUpdate;
+    public GilTrackerService(IClientState _clientState, IPlayerState _playerState, IFramework _framework, IGameInventory _inventory)
+    {
+        clientState = _clientState;
+        playerState = _playerState;
+        framework = _framework;
+        inventory = _inventory;
+
+        framework.Update += OnFrameworkUpdate;
     }
+
 
     public void Dispose()
     {
-        _framework.Update -= OnFrameworkUpdate;
+        framework.Update -= OnFrameworkUpdate;
     }
 
     public void ResetBaseline()
     {
-        _baselineGil = null;
-        _currentGil = null;
-        _sessionDelta = 0;
-        _gained = 0;
-        _spent = 0;
+        baselineGil = null;
+        currentGil = null;
+        sessionDelta = 0;
+        gained = 0;
+        spent = 0;
     }
 
     private void OnFrameworkUpdate(IFramework _)
     {
         // Keep it light: poll ~2x/sec.
         var now = DateTime.UtcNow;
-        if ((now - _lastPoll).TotalMilliseconds < 500)
+        if ((now - lastPoll).TotalMilliseconds < 500)
             return;
-        _lastPoll = now;
+        lastPoll = now;
 
-        if (!_clientState.IsLoggedIn)
+        if (!clientState.IsLoggedIn)
         {
-            // If you want persistence across character swaps you can remove this,
-            // but for a simple "session" definition, we reset on logout.
             ResetBaseline();
             return;
         }
@@ -80,56 +84,55 @@ internal sealed class GilTrackerService : IDisposable
         if (!gil.HasValue)
             return;
 
-        if (!_baselineGil.HasValue)
+        if (!baselineGil.HasValue)
         {
-            _baselineGil = gil.Value;
-            _currentGil = gil.Value;
+            baselineGil = gil.Value;
+            currentGil = gil.Value;
             return;
         }
 
-        bool changed = false;
+        var changed = false;
 
-        if (_currentGil.HasValue)
+        if (currentGil.HasValue)
         {
-            var diff = gil.Value - _currentGil.Value;
+            var diff = gil.Value - currentGil.Value;
             if (diff != 0)
             {
                 changed = true;
 
                 if (diff > 0)
-                    _gained += diff;
+                    gained += diff;
                 else
-                    _spent += -diff;
+                    spent += -diff;
             }
         }
 
-        _currentGil = gil.Value;
-        _sessionDelta = gil.Value - _baselineGil.Value;
+        currentGil = gil.Value;
+        sessionDelta = gil.Value - baselineGil.Value;
 
         if (changed)
-            OnGilChanged?.Invoke(_sessionDelta, _gained, _spent);
+            OnGilChanged?.Invoke(sessionDelta, gained, spent);
 
     }
 
-    private int? TryReadCurrentGil()
-    {
-        try
-        {
-            var items = _inventory.GetInventoryItems(GameInventoryType.Currency);
-            foreach (ref readonly var item in items)
-            {
-                if (item.IsEmpty)
-                    continue;
-                if (item.BaseItemId == GilBaseItemId)
-                    return item.Quantity;
-            }
-        }
-        catch
-        {
-            // If Dalamud throws during zoning/loading, just ignore this tick.
-        }
-
+private int? TryReadCurrentGil()
+{
+    if (!clientState.IsLoggedIn)
         return null;
+
+    if (playerState == null)
+        return null;
+
+    var items = inventory.GetInventoryItems(GameInventoryType.Currency);
+    foreach (ref readonly var item in items)
+    {
+        if (item.IsEmpty) continue;
+        if (item.BaseItemId == GilBaseItemId)
+            return item.Quantity;
     }
+
+    return null;
+}
+
 
 }

@@ -22,6 +22,9 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IFramework Framework { get; private set; } = null!;
     [PluginService] internal static IGameInventory GameInventory { get; private set; } = null!;
     [PluginService] internal static IPluginLog Log { get; private set; } = null!;
+    [PluginService] internal static IDtrBar DtrBar { get; private set; } = null!;
+    [PluginService] internal static IPlayerState PlayerState { get; private set; } = null!;
+
 
     private const string CommandName = "/gilstracker";
 
@@ -33,15 +36,14 @@ public sealed class Plugin : IDalamudPlugin
     private ConfigWindow ConfigWindow { get; init; }
     private MainWindow MainWindow { get; init; }
 
-    private readonly IDtrBar dtrBar;
-    private IDtrBarEntry? dtrEntry;
+    private readonly IDtrBarEntry? dtrEntry;
 
-    public Plugin(IDtrBar dtrBar)
+    public Plugin()
     {
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
 
         // Polls Currency inventory on Framework.Update (throttled internally).
-        GilTracker = new GilTrackerService(ClientState, Framework, GameInventory);
+        GilTracker = new GilTrackerService(ClientState, PlayerState, Framework, GameInventory);
 
         GilTracker.OnGilChanged += UpdateDtrText;
 
@@ -60,10 +62,8 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUi;
         PluginInterface.UiBuilder.OpenMainUi += ToggleMainUi;
 
-        
-        this.dtrBar = dtrBar;
+        dtrEntry = DtrBar.Get("GilsTracker");
 
-        dtrEntry = dtrBar.Get("GilsTracker");
         dtrEntry.Text = "Gil: …";
         dtrEntry.Tooltip = "GilsTracker\nClic: reset session";
         dtrEntry.Shown = Configuration.ShowDTR;
@@ -86,13 +86,10 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.OpenMainUi -= ToggleMainUi;
 
         GilTracker.OnGilChanged -= UpdateDtrText;
-        if (dtrEntry != null)
-            dtrEntry.Remove();
+        dtrEntry?.Remove();
 
 
         WindowSystem.RemoveAllWindows();
-        ConfigWindow.Dispose();
-        MainWindow.Dispose();
 
         GilTracker.Dispose();
 
@@ -103,30 +100,18 @@ public sealed class Plugin : IDalamudPlugin
 
     private void UpdateDtrText(long net, long gained, long spent)
     {
-        if (dtrEntry is null)
-            return;
+        if (dtrEntry is null) return;
 
         var elapsedHours = (DateTime.UtcNow - sessionStartUtc).TotalHours;
         var perHour = elapsedHours > 0 ? (long)(net / elapsedHours) : 0;
 
-        var se = new SeString();
+        var color = (ushort)(net > 0 ? 45 : net < 0 ? 17 : 0);
 
-        // "Gil "
-        se.Payloads.Add(new TextPayload("Gil "));
-
-        // couleur selon net
-        se.Payloads.Add(new UIForegroundPayload(
-            (ushort)(net > 0 ? 45 :   // vert
-            net < 0 ? 17 :   // rouge
-            0)
-        ));
-
-        se.Payloads.Add(new TextPayload($"{(net >= 0 ? "+" : "")}{FormatGil(net)}"));
-
-        // reset couleur
-        se.Payloads.Add(new UIForegroundPayload(0));
-
-        se.Payloads.Add(new TextPayload($" | {FormatGil(perHour)}/h"));
+        var se = new SeStringBuilder()
+            .AddText("Gil ")
+            .AddUiForeground($"{(net >= 0 ? "+" : "")}{FormatGil(net)}", color)
+            .AddText($" | {FormatGil(perHour)}/h")
+            .Build();
 
         dtrEntry.Text = se;
 
@@ -136,7 +121,7 @@ public sealed class Plugin : IDalamudPlugin
             $"Gained: +{gained:n0}\n" +
             $"Spent:  -{spent:n0}\n" +
             $"Rate: {perHour:n0} / hour\n" +
-            $"Clic: reset session";
+            $"Click: reset session";
     }
 
     private static string FormatGil(long v)
