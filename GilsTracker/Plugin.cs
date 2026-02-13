@@ -38,6 +38,9 @@ public sealed class Plugin : IDalamudPlugin
 
     private readonly IDtrBarEntry? dtrEntry;
 
+    private SeString? lastDtrText;
+    private string? lastDtrTooltip;
+
     public Plugin()
     {
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
@@ -100,29 +103,42 @@ public sealed class Plugin : IDalamudPlugin
 
     private void UpdateDtrText(long net, long gained, long spent)
     {
-        if (dtrEntry is null) return;
+        if (dtrEntry is null || !dtrEntry.Shown)
+            return;
 
         var elapsedHours = (DateTime.UtcNow - sessionStartUtc).TotalHours;
         var perHour = elapsedHours > 0 ? (long)(net / elapsedHours) : 0;
 
         var color = (ushort)(net > 0 ? 45 : net < 0 ? 17 : 0);
 
-        var se = new SeStringBuilder()
+        var text = new SeStringBuilder()
             .AddText("Gil ")
             .AddUiForeground($"{(net >= 0 ? "+" : "")}{FormatGil(net)}", color)
             .AddText($" | {FormatGil(perHour)}/h")
             .Build();
 
-        dtrEntry.Text = se;
-
-        dtrEntry.Tooltip =
+        var tooltip =
             $"GilsTracker\n" +
             $"Net: {(net >= 0 ? "+" : "")}{net:n0}\n" +
             $"Gained: +{gained:n0}\n" +
             $"Spent:  -{spent:n0}\n" +
             $"Rate: {perHour:n0} / hour\n" +
             $"Click: reset session";
+
+
+        if (lastDtrText == null || !lastDtrText.Equals(text))
+        {
+            dtrEntry.Text = text;
+            lastDtrText = text;
+        }
+
+        if (lastDtrTooltip != tooltip)
+        {
+            dtrEntry.Tooltip = tooltip;
+            lastDtrTooltip = tooltip;
+        }
     }
+
 
     private static string FormatGil(long v)
     {
