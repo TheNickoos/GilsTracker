@@ -1,5 +1,9 @@
 using Dalamud.Game.Command;
 using Dalamud.Game.Gui.Dtr;
+using Dalamud.Game.Text;
+using Dalamud.Game.Text.SeStringHandling;
+using Dalamud.Game.Text.SeStringHandling.Payloads;
+using Dalamud.Interface.Utility;
 using Dalamud.Interface.Windowing;
 using Dalamud.IoC;
 using Dalamud.Plugin;
@@ -7,9 +11,8 @@ using Dalamud.Plugin.Services;
 using GilsTracker.Windows;
 using System;
 using System.IO;
-using Dalamud.Game.Text;
-using Dalamud.Game.Text.SeStringHandling;
-using Dalamud.Game.Text.SeStringHandling.Payloads;
+using System.Numerics;
+using System.Reflection;
 
 namespace GilsTracker;
 
@@ -66,6 +69,8 @@ public sealed class Plugin : IDalamudPlugin
         PluginInterface.UiBuilder.OpenMainUi += ToggleMainUi;
 
         dtrEntry = DtrBar.Get("GilsTracker");
+
+        dtrEntry.MinimumWidth = (ushort)(170f * ImGuiHelpers.GlobalScale);
 
         dtrEntry.Text = "Gil: …";
         dtrEntry.Tooltip = "GilsTracker\nClic: reset session";
