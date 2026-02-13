@@ -70,7 +70,7 @@ public sealed class Plugin : IDalamudPlugin
 
         dtrEntry = DtrBar.Get("GilsTracker");
 
-        dtrEntry.MinimumWidth = (ushort)(170f * ImGuiHelpers.GlobalScale);
+        dtrEntry.MinimumWidth = (ushort)170f;
 
         dtrEntry.Text = "Gil: …";
         dtrEntry.Tooltip = "GilsTracker\nClic: reset session";
