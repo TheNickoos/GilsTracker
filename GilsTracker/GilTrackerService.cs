@@ -1,4 +1,5 @@
 using Dalamud.Game.Inventory;
+using Dalamud.IoC;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
@@ -15,6 +16,8 @@ namespace GilsTracker;
 /// </summary>
 internal sealed class GilTrackerService : IDisposable
 {
+    [PluginService] internal static IObjectTable ObjectTable { get; private set; } = null!;
+
     private const uint GilBaseItemId = 1;
 
     private readonly IClientState clientState;
@@ -120,8 +123,8 @@ private int? TryReadCurrentGil()
     if (!clientState.IsLoggedIn)
         return null;
 
-    if (playerState == null)
-        return null;
+    if (ObjectTable.LocalPlayer == null)
+         return null;
 
     var items = inventory.GetInventoryItems(GameInventoryType.Currency);
     foreach (ref readonly var item in items)
