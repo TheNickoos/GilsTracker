@@ -1,31 +1,19 @@
 using Dalamud.Game.Inventory;
-using Dalamud.IoC;
 using Dalamud.Plugin.Services;
-using FFXIVClientStructs.FFXIV.Client.Game.UI;
-using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using System;
 
 namespace GilsTracker;
 
-/// <summary>
-/// Tracks gil changes during the current game session.
-/// 
-/// Implementation note:
-/// We read the Currency inventory (GameInventoryType.Currency) and look for the entry
-/// whose BaseItemId == 1 (Gil). The Quantity of that entry equals the player's current gil.
-/// </summary>
 internal sealed class GilTrackerService : IDisposable
 {
-    [PluginService] internal static IObjectTable ObjectTable { get; private set; } = null!;
-
     private const uint GilBaseItemId = 1;
 
     private readonly IClientState clientState;
+    private readonly IObjectTable objectTable;
     private readonly IFramework framework;
     private readonly IGameInventory inventory;
     private DateTime lastPoll = DateTime.MinValue;
 
-    // Session state
     public bool HasBaseline => baselineGil.HasValue;
     public int? CurrentGil => currentGil;
     public int? BaselineGil => baselineGil;
@@ -40,20 +28,20 @@ internal sealed class GilTrackerService : IDisposable
     private int spent;
 
     public event Action<long, long, long>? OnGilChanged;
-    // args = net, gained, spent
 
-    private readonly IPlayerState playerState;
-
-    public GilTrackerService(IClientState _clientState, IPlayerState _playerState, IFramework _framework, IGameInventory _inventory)
+    public GilTrackerService(
+        IClientState clientState,
+        IObjectTable objectTable,
+        IFramework framework,
+        IGameInventory inventory)
     {
-        clientState = _clientState;
-        playerState = _playerState;
-        framework = _framework;
-        inventory = _inventory;
+        this.clientState = clientState;
+        this.objectTable = objectTable;
+        this.framework = framework;
+        this.inventory = inventory;
 
-        framework.Update += OnFrameworkUpdate;
+        this.framework.Update += OnFrameworkUpdate;
     }
-
 
     public void Dispose()
     {
@@ -71,10 +59,10 @@ internal sealed class GilTrackerService : IDisposable
 
     private void OnFrameworkUpdate(IFramework _)
     {
-        // Keep it light: poll ~2x/sec.
         var now = DateTime.UtcNow;
         if ((now - lastPoll).TotalMilliseconds < 500)
             return;
+
         lastPoll = now;
 
         if (!clientState.IsLoggedIn)
@@ -115,27 +103,26 @@ internal sealed class GilTrackerService : IDisposable
 
         if (changed)
             OnGilChanged?.Invoke(sessionDelta, gained, spent);
-
     }
 
-private int? TryReadCurrentGil()
-{
-    if (!clientState.IsLoggedIn)
-        return null;
-
-    if (ObjectTable.LocalPlayer == null)
-         return null;
-
-    var items = inventory.GetInventoryItems(GameInventoryType.Currency);
-    foreach (ref readonly var item in items)
+    private int? TryReadCurrentGil()
     {
-        if (item.IsEmpty) continue;
-        if (item.BaseItemId == GilBaseItemId)
-            return item.Quantity;
+        if (!clientState.IsLoggedIn)
+            return null;
+
+        if (objectTable.LocalPlayer == null)
+            return null;
+
+        var items = inventory.GetInventoryItems(GameInventoryType.Currency);
+        foreach (ref readonly var item in items)
+        {
+            if (item.IsEmpty)
+                continue;
+
+            if (item.BaseItemId == GilBaseItemId)
+                return item.Quantity;
+        }
+
+        return null;
     }
-
-    return null;
-}
-
-
 }

@@ -1,18 +1,12 @@
 using Dalamud.Game.Command;
 using Dalamud.Game.Gui.Dtr;
-using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
-using Dalamud.Game.Text.SeStringHandling.Payloads;
-using Dalamud.Interface.Utility;
 using Dalamud.Interface.Windowing;
 using Dalamud.IoC;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using GilsTracker.Windows;
 using System;
-using System.IO;
-using System.Numerics;
-using System.Reflection;
 
 namespace GilsTracker;
 
@@ -26,8 +20,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IGameInventory GameInventory { get; private set; } = null!;
     [PluginService] internal static IPluginLog Log { get; private set; } = null!;
     [PluginService] internal static IDtrBar DtrBar { get; private set; } = null!;
-    [PluginService] internal static IPlayerState PlayerState { get; private set; } = null!;
-
+    [PluginService] internal static IObjectTable ObjectTable { get; private set; } = null!;
 
     private const string CommandName = "/gilstracker";
 
@@ -49,7 +42,7 @@ public sealed class Plugin : IDalamudPlugin
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
 
         // Polls Currency inventory on Framework.Update (throttled internally).
-        GilTracker = new GilTrackerService(ClientState, PlayerState, Framework, GameInventory);
+        GilTracker = new GilTrackerService(ClientState, ObjectTable, Framework, GameInventory);
 
         GilTracker.OnGilChanged += UpdateDtrText;
 
